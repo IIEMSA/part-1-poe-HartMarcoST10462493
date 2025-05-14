@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Data;
 using System.Data.Entity;
+using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Net;
-using System.Web;
 using System.Web.Mvc;
 using EventEasePart2.Models;
 
@@ -15,9 +13,20 @@ namespace EventEasePart2.Controllers
         private EventEasyDBContext db = new EventEasyDBContext();
 
         // GET: Booking
-        public ActionResult Index()
+        public ActionResult Index(string searchTerm)
         {
-            var bookings = db.Bookings.Include(b => b.Event).Include(b => b.Venue);
+            var bookings = db.Bookings
+                             .Include(b => b.Event)
+                             .Include(b => b.Venue);
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                bookings = bookings.Where(b =>
+                    b.BookingId.ToString().Contains(searchTerm) ||
+                    b.Event.EventName.Contains(searchTerm));
+            }
+
+            ViewBag.CurrentFilter = searchTerm;
             return View(bookings.ToList());
         }
 
@@ -25,41 +34,51 @@ namespace EventEasePart2.Controllers
         public ActionResult Details(int? id)
         {
             if (id == null)
-            {
                 return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
-            }
-            Booking booking = db.Bookings.Find(id);
+
+            var booking = db.Bookings
+                            .Include(b => b.Event)
+                            .Include(b => b.Venue)
+                            .FirstOrDefault(b => b.BookingId == id);
+
             if (booking == null)
-            {
                 return HttpNotFound();
-            }
+
             return View(booking);
         }
 
         // GET: Booking/Create
         public ActionResult Create()
         {
-            ViewBag.EventId = new SelectList(db.Events, "EventId", "EventName");
-            ViewBag.VenueId = new SelectList(db.Venues, "VenueId", "VenueName");
+            PopulateEventAndVenueSelectLists();
             return View();
         }
 
         // POST: Booking/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to, for 
-        // more details see https://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
         public ActionResult Create([Bind(Include = "BookingId,EventId,VenueId,BookingDate")] Booking booking)
         {
             if (ModelState.IsValid)
             {
-                db.Bookings.Add(booking);
-                db.SaveChanges();
-                return RedirectToAction("Index");
+                bool isDoubleBooked = db.Bookings.Any(b =>
+                    b.VenueId == booking.VenueId &&
+                    DbFunctions.TruncateTime(b.BookingDate) == DbFunctions.TruncateTime(booking.BookingDate));
+
+                if (isDoubleBooked)
+                {
+                    ModelState.AddModelError("", "This venue is already booked on the selected date.");
+                }
+                else
+                {
+                    db.Bookings.Add(booking);
+                    db.SaveChanges();
+                    TempData["SuccessMessage"] = "Booking created successfully.";
+                    return RedirectToAction("Index");
+                }
             }
 
-            ViewBag.EventId = new SelectList(db.Events, "EventId", "EventName", booking.EventId);
-            ViewBag.VenueId = new SelectList(db.Venues, "VenueId", "VenueName", booking.VenueId);
+            PopulateEventAndVenueSelectLists(booking.EventId, booking.VenueId);
             return View(booking);
         }
 
@@ -67,34 +86,42 @@ namespace EventEasePart2.Controllers
         public ActionResult Edit(int? id)
         {
             if (id == null)
-            {
                 return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
-            }
-            Booking booking = db.Bookings.Find(id);
+
+            var booking = db.Bookings.Find(id);
             if (booking == null)
-            {
                 return HttpNotFound();
-            }
-            ViewBag.EventId = new SelectList(db.Events, "EventId", "EventName", booking.EventId);
-            ViewBag.VenueId = new SelectList(db.Venues, "VenueId", "VenueName", booking.VenueId);
+
+            PopulateEventAndVenueSelectLists(booking.EventId, booking.VenueId);
             return View(booking);
         }
 
         // POST: Booking/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to, for 
-        // more details see https://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
         public ActionResult Edit([Bind(Include = "BookingId,EventId,VenueId,BookingDate")] Booking booking)
         {
             if (ModelState.IsValid)
             {
-                db.Entry(booking).State = EntityState.Modified;
-                db.SaveChanges();
-                return RedirectToAction("Index");
+                bool isDoubleBooked = db.Bookings.Any(b =>
+                    b.BookingId != booking.BookingId &&
+                    b.VenueId == booking.VenueId &&
+                    DbFunctions.TruncateTime(b.BookingDate) == DbFunctions.TruncateTime(booking.BookingDate));
+
+                if (isDoubleBooked)
+                {
+                    ModelState.AddModelError("", "This venue is already booked on the selected date.");
+                }
+                else
+                {
+                    db.Entry(booking).State = EntityState.Modified;
+                    db.SaveChanges();
+                    TempData["SuccessMessage"] = "Booking updated successfully.";
+                    return RedirectToAction("Index");
+                }
             }
-            ViewBag.EventId = new SelectList(db.Events, "EventId", "EventName", booking.EventId);
-            ViewBag.VenueId = new SelectList(db.Venues, "VenueId", "VenueName", booking.VenueId);
+
+            PopulateEventAndVenueSelectLists(booking.EventId, booking.VenueId);
             return View(booking);
         }
 
@@ -102,14 +129,16 @@ namespace EventEasePart2.Controllers
         public ActionResult Delete(int? id)
         {
             if (id == null)
-            {
                 return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
-            }
-            Booking booking = db.Bookings.Find(id);
+
+            var booking = db.Bookings
+                            .Include(b => b.Event)
+                            .Include(b => b.Venue)
+                            .FirstOrDefault(b => b.BookingId == id);
+
             if (booking == null)
-            {
                 return HttpNotFound();
-            }
+
             return View(booking);
         }
 
@@ -119,9 +148,25 @@ namespace EventEasePart2.Controllers
         public ActionResult DeleteConfirmed(int id)
         {
             Booking booking = db.Bookings.Find(id);
-            db.Bookings.Remove(booking);
-            db.SaveChanges();
-            return RedirectToAction("Index");
+
+            try
+            {
+                db.Bookings.Remove(booking);
+                db.SaveChanges();
+                TempData["SuccessMessage"] = "Booking deleted successfully.";
+                return RedirectToAction("Index");
+            }
+            catch (DbUpdateException)
+            {
+                TempData["DeleteError"] = "Booking can't be deleted due to related data constraints.";
+                return RedirectToAction("Delete", new { id = id });
+            }
+        }
+
+        private void PopulateEventAndVenueSelectLists(int? eventId = null, int? venueId = null)
+        {
+            ViewBag.EventId = new SelectList(db.Events, "EventId", "EventName", eventId);
+            ViewBag.VenueId = new SelectList(db.Venues, "VenueId", "VenueName", venueId);
         }
 
         protected override void Dispose(bool disposing)

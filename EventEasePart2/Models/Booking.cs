@@ -1,24 +1,37 @@
 namespace EventEasePart2.Models
 {
     using System;
-    using System.Collections.Generic;
     using System.ComponentModel.DataAnnotations;
     using System.ComponentModel.DataAnnotations.Schema;
-    using System.Data.Entity.Spatial;
 
     [Table("Booking")]
     public partial class Booking
     {
+        [Key]
         public int BookingId { get; set; }
 
-        public int? EventId { get; set; }
+        [Required]
+        [ForeignKey("Event")]
+        public int EventId { get; set; }
 
-        public int? VenueId { get; set; }
+        [Required]
+        [ForeignKey("Venue")]
+        public int VenueId { get; set; }
 
-        public DateTime BookingDate { get; set; }
+        [Column(TypeName = "date")]
+        [DataType(DataType.Date)]
+        [Display(Name = "Booking Date")]
+        public DateTime? BookingDate { get; set; }
+
+        [Required]
+        [Display(Name = "Customer Name")]
+        public string CustomerName { get; set; }
+
+        [Required]
+        [Display(Name = "Seats Reserved")]
+        public int SeatsReserved { get; set; }
 
         public virtual Event Event { get; set; }
-
         public virtual Venue Venue { get; set; }
     }
 }

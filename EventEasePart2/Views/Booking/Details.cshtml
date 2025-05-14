@@ -10,32 +10,23 @@
     <h4>Booking</h4>
     <hr />
     <dl class="dl-horizontal">
-        <dt>
-            @Html.DisplayNameFor(model => model.Event.EventName)
-        </dt>
+        <dt>@Html.DisplayNameFor(model => model.CustomerName)</dt>
+        <dd>@Html.DisplayFor(model => model.CustomerName)</dd>
 
-        <dd>
-            @Html.DisplayFor(model => model.Event.EventName)
-        </dd>
+        <dt>@Html.DisplayNameFor(model => model.Event.EventName)</dt>
+        <dd>@Html.DisplayFor(model => model.Event.EventName)</dd>
 
-        <dt>
-            @Html.DisplayNameFor(model => model.Venue.VenueName)
-        </dt>
+        <dt>@Html.DisplayNameFor(model => model.Venue.VenueName)</dt>
+        <dd>@Html.DisplayFor(model => model.Venue.VenueName)</dd>
 
-        <dd>
-            @Html.DisplayFor(model => model.Venue.VenueName)
-        </dd>
+        <dt>@Html.DisplayNameFor(model => model.BookingDate)</dt>
+        <dd>@Html.DisplayFor(model => model.BookingDate)</dd>
 
-        <dt>
-            @Html.DisplayNameFor(model => model.BookingDate)
-        </dt>
-
-        <dd>
-            @Html.DisplayFor(model => model.BookingDate)
-        </dd>
-
+        <dt>@Html.DisplayNameFor(model => model.SeatsReserved)</dt>
+        <dd>@Html.DisplayFor(model => model.SeatsReserved)</dd>
     </dl>
 </div>
+
 <p>
     @Html.ActionLink("Edit", "Edit", new { id = Model.BookingId }) |
     @Html.ActionLink("Back to List", "Index")

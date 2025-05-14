@@ -1,7 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data;
+﻿using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using System;
 using System.Data.Entity;
+using System.Data.Entity.Infrastructure;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Web;
@@ -14,24 +16,46 @@ namespace EventEasePart2.Controllers
     {
         private EventEasyDBContext db = new EventEasyDBContext();
 
-        // GET: Venue
-        public ActionResult Index()
+        private string GetBlobUrl(HttpPostedFileBase imageFile)
         {
-            return View(db.Venues.ToList());
+            var connectionString = System.Configuration.ConfigurationManager.AppSettings["AzureStorageConnectionString"];
+            var containerName = System.Configuration.ConfigurationManager.AppSettings["AzureBlobContainerName"];
+
+            var blobServiceClient = new BlobServiceClient(connectionString);
+            var containerClient = blobServiceClient.GetBlobContainerClient(containerName);
+            containerClient.CreateIfNotExists();
+
+            var fileName = Guid.NewGuid().ToString() + Path.GetExtension(imageFile.FileName);
+            var blobClient = containerClient.GetBlobClient(fileName);
+
+            blobClient.Upload(imageFile.InputStream, new BlobHttpHeaders { ContentType = imageFile.ContentType });
+            return blobClient.Uri.ToString();
+        }
+
+        // GET: Venue
+        public ActionResult Index(string searchTerm)
+        {
+            var venues = db.Venues.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                venues = venues.Where(v =>
+                    v.VenueName.Contains(searchTerm) ||
+                    v.Location.Contains(searchTerm));
+            }
+
+            ViewBag.CurrentFilter = searchTerm;
+            return View(venues.ToList());
         }
 
         // GET: Venue/Details/5
         public ActionResult Details(int? id)
         {
-            if (id == null)
-            {
-                return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
-            }
-            Venue venue = db.Venues.Find(id);
-            if (venue == null)
-            {
-                return HttpNotFound();
-            }
+            if (!id.HasValue) return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
+
+            var venue = db.Venues.Find(id);
+            if (venue == null) return HttpNotFound();
+
             return View(venue);
         }
 
@@ -42,17 +66,32 @@ namespace EventEasePart2.Controllers
         }
 
         // POST: Venue/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to, for 
-        // more details see https://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult Create([Bind(Include = "VenueId,VenueName,Location,Capacity,ImageUrl")] Venue venue)
+        public ActionResult Create([Bind(Include = "VenueId,VenueName,Location,Capacity")] Venue venue, HttpPostedFileBase ImageFile)
         {
             if (ModelState.IsValid)
             {
-                db.Venues.Add(venue);
-                db.SaveChanges();
-                return RedirectToAction("Index");
+                bool isDuplicate = db.Venues.Any(v =>
+                    v.VenueName == venue.VenueName &&
+                    v.Location == venue.Location);
+
+                if (isDuplicate)
+                {
+                    ModelState.AddModelError("", "A venue with the same name and location already exists.");
+                }
+                else
+                {
+                    if (ImageFile != null && ImageFile.ContentLength > 0)
+                    {
+                        venue.ImageUrl = GetBlobUrl(ImageFile);
+                    }
+
+                    db.Venues.Add(venue);
+                    db.SaveChanges();
+                    TempData["SuccessMessage"] = "Venue created successfully.";
+                    return RedirectToAction("Index");
+                }
             }
 
             return View(venue);
@@ -61,46 +100,62 @@ namespace EventEasePart2.Controllers
         // GET: Venue/Edit/5
         public ActionResult Edit(int? id)
         {
-            if (id == null)
-            {
-                return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
-            }
-            Venue venue = db.Venues.Find(id);
-            if (venue == null)
-            {
-                return HttpNotFound();
-            }
+            if (!id.HasValue) return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
+
+            var venue = db.Venues.Find(id);
+            if (venue == null) return HttpNotFound();
+
             return View(venue);
         }
 
         // POST: Venue/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to, for 
-        // more details see https://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult Edit([Bind(Include = "VenueId,VenueName,Location,Capacity,ImageUrl")] Venue venue)
+        public ActionResult Edit([Bind(Include = "VenueId,VenueName,Location,Capacity")] Venue venue, HttpPostedFileBase ImageFile)
         {
+            var existingVenue = db.Venues.Find(venue.VenueId);
+            if (existingVenue == null) return HttpNotFound();
+
             if (ModelState.IsValid)
             {
-                db.Entry(venue).State = EntityState.Modified;
-                db.SaveChanges();
-                return RedirectToAction("Index");
+                bool isDuplicate = db.Venues.Any(v =>
+                    v.VenueId != venue.VenueId &&
+                    v.VenueName == venue.VenueName &&
+                    v.Location == venue.Location);
+
+                if (isDuplicate)
+                {
+                    ModelState.AddModelError("", "A venue with the same name and location already exists.");
+                }
+                else
+                {
+                    existingVenue.VenueName = venue.VenueName;
+                    existingVenue.Location = venue.Location;
+                    existingVenue.Capacity = venue.Capacity;
+
+                    if (ImageFile != null && ImageFile.ContentLength > 0)
+                    {
+                        existingVenue.ImageUrl = GetBlobUrl(ImageFile);
+                    }
+
+                    db.Entry(existingVenue).State = EntityState.Modified;
+                    db.SaveChanges();
+                    TempData["SuccessMessage"] = "Venue updated successfully.";
+                    return RedirectToAction("Index");
+                }
             }
+
             return View(venue);
         }
 
         // GET: Venue/Delete/5
         public ActionResult Delete(int? id)
         {
-            if (id == null)
-            {
-                return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
-            }
-            Venue venue = db.Venues.Find(id);
-            if (venue == null)
-            {
-                return HttpNotFound();
-            }
+            if (!id.HasValue) return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
+
+            var venue = db.Venues.Find(id);
+            if (venue == null) return HttpNotFound();
+
             return View(venue);
         }
 
@@ -109,18 +164,25 @@ namespace EventEasePart2.Controllers
         [ValidateAntiForgeryToken]
         public ActionResult DeleteConfirmed(int id)
         {
-            Venue venue = db.Venues.Find(id);
-            db.Venues.Remove(venue);
-            db.SaveChanges();
-            return RedirectToAction("Index");
+            var venue = db.Venues.Find(id);
+
+            try
+            {
+                db.Venues.Remove(venue);
+                db.SaveChanges();
+                TempData["SuccessMessage"] = "Venue deleted successfully.";
+                return RedirectToAction("Index");
+            }
+            catch (DbUpdateException)
+            {
+                TempData["DeleteError"] = "Venue can't be deleted because it is linked to events or bookings.";
+                return RedirectToAction("Delete", new { id = id });
+            }
         }
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing)
-            {
-                db.Dispose();
-            }
+            if (disposing) db.Dispose();
             base.Dispose(disposing);
         }
     }

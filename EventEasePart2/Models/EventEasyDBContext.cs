@@ -1,7 +1,4 @@
-using System;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Data.Entity;
-using System.Linq;
+﻿using System.Data.Entity;
 
 namespace EventEasePart2.Models
 {
@@ -18,6 +15,26 @@ namespace EventEasePart2.Models
 
         protected override void OnModelCreating(DbModelBuilder modelBuilder)
         {
+            // Event → Venue
+            modelBuilder.Entity<Event>()
+                .HasOptional(e => e.Venue)
+                .WithMany(v => v.Events)
+                .HasForeignKey(e => e.VenueId)
+                .WillCascadeOnDelete(false);
+
+            // Booking → Event
+            modelBuilder.Entity<Booking>()
+                .HasRequired(b => b.Event)
+                .WithMany(e => e.Bookings)
+                .HasForeignKey(b => b.EventId)
+                .WillCascadeOnDelete(false);
+
+            // Booking → Venue
+            modelBuilder.Entity<Booking>()
+                .HasRequired(b => b.Venue)
+                .WithMany(v => v.Bookings)
+                .HasForeignKey(b => b.VenueId)
+                .WillCascadeOnDelete(false);
         }
     }
 }

@@ -1,51 +1,52 @@
 ﻿@model IEnumerable<EventEasePart2.Models.Venue>
-
 @{
-    ViewBag.Title = "Index";
+    ViewBag.Title = "Venues";
+}
+<h2>Venues</h2>
+
+@using (Html.BeginForm("Index", "Venue", FormMethod.Get))
+{
+    <div class="form-group">
+        @Html.TextBox("searchTerm", ViewBag.CurrentFilter as string, new { @class = "form-control", placeholder = "Search by name or location..." })
+    </div>
+    <button type="submit" class="btn btn-primary">Search</button>
+    <a href="@Url.Action("Create")" class="btn btn-success">Create New Venue</a>
 }
 
-<h2>Index</h2>
-
-<p>
-    @Html.ActionLink("Create New", "Create")
-</p>
-<table class="table">
-    <tr>
-        <th>
-            @Html.DisplayNameFor(model => model.VenueName)
-        </th>
-        <th>
-            @Html.DisplayNameFor(model => model.Location)
-        </th>
-        <th>
-            @Html.DisplayNameFor(model => model.Capacity)
-        </th>
-        <th>
-            @Html.DisplayNameFor(model => model.ImageUrl)
-        </th>
-        <th></th>
-    </tr>
-
-@foreach (var item in Model) {
-    <tr>
-        <td>
-            @Html.DisplayFor(modelItem => item.VenueName)
-        </td>
-        <td>
-            @Html.DisplayFor(modelItem => item.Location)
-        </td>
-        <td>
-            @Html.DisplayFor(modelItem => item.Capacity)
-        </td>
-        <td>
-            @Html.DisplayFor(modelItem => item.ImageUrl)
-        </td>
-        <td>
-            @Html.ActionLink("Edit", "Edit", new { id=item.VenueId }) |
-            @Html.ActionLink("Details", "Details", new { id=item.VenueId }) |
-            @Html.ActionLink("Delete", "Delete", new { id=item.VenueId })
-        </td>
-    </tr>
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success mt-3">@TempData["SuccessMessage"]</div>
 }
 
+<table class="table table-striped mt-3">
+    <thead>
+        <tr>
+            <th>Image</th>
+            <th>Name</th>
+            <th>Location</th>
+            <th>Capacity</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var venue in Model)
+        {
+            <tr>
+                <td>
+                    @if (!string.IsNullOrEmpty(venue.ImageUrl))
+                    {
+                        <img src="@venue.ImageUrl" alt="Venue Image" style="max-height: 60px;" class="img-thumbnail" />
+                    }
+                </td>
+                <td>@venue.VenueName</td>
+                <td>@venue.Location</td>
+                <td>@venue.Capacity</td>
+                <td>
+                    @Html.ActionLink("Details", "Details", new { id = venue.VenueId }, new { @class = "btn btn-info btn-sm" }) |
+                    @Html.ActionLink("Edit", "Edit", new { id = venue.VenueId }, new { @class = "btn btn-warning btn-sm" }) |
+                    @Html.ActionLink("Delete", "Delete", new { id = venue.VenueId }, new { @class = "btn btn-danger btn-sm" })
+                </td>
+            </tr>
+        }
+    </tbody>
 </table>
